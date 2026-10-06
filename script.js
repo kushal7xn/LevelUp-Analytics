@@ -1,5 +1,3 @@
-
-
 /* GLOBAL ERROR HANDLER */
 window.onerror = function (msg, url, line, col, error) {
     console.error("GLOBAL ERROR:", msg, error);
@@ -137,6 +135,12 @@ function buildAnalysisMessage(jobRole, resumeText, githubUrl) {
         message += `\nGitHub Profile: ${githubUrl}`;
     }
 
+    const jdEl = document.getElementById('jobDescription');
+    const jd = jdEl ? jdEl.value.trim() : '';
+    if (jd) {
+        message += `\n\nJob Description:\n${jd}`;
+    }
+
     message += `\n\nResume:\n${resumeText}`;
     return message;
 }
@@ -182,7 +186,8 @@ function normalizeResult(data) {
         missing_skills: data.missing_skills || [],
         learning_path: data.learning_path || [],
         ats_score_improving_tips: Array.isArray(tips) ? tips : [tips],
-        github_recommendations: data.github_recommendations || []
+        github_recommendations: data.github_recommendations || [],
+        areta_message: data.areta_message || undefined
     };
 }
 
@@ -323,8 +328,22 @@ async function extractTextFromPDF(file) {
     for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        const strings = content.items.map(item => item.str);
-        text += strings.join(" ") + " ";
+
+        // Rebuild lines from y-positions so headings and bullets stay on their own lines
+        let lastY = null;
+        let line = "";
+        const lines = [];
+        for (const item of content.items) {
+            const y = Math.round(item.transform[5]);
+            if (lastY !== null && Math.abs(y - lastY) > 2) {
+                lines.push(line.trim());
+                line = "";
+            }
+            line += item.str + (item.hasEOL ? "\n" : " ");
+            lastY = y;
+        }
+        if (line.trim()) lines.push(line.trim());
+        text += lines.filter(Boolean).join("\n") + "\n\n";
     }
 
     return text;
